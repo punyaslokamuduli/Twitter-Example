@@ -1,0 +1,59 @@
+# Streeming Data Access from Twitter Using Flume and show data in HIVE Table#
+
+# JAR Required #
+# 1. Replace twitter4j-core-3.0.3.jar to twitter4j-core-2.2.6.jar /usr/lib/flume-ng/lib/
+# 2. Copy flume-sources-1.0-SNAPSHOT.jar to /usr/lib/flume-ng/lib/ directory
+# 3. In Hive attach hive-serdes-1.0-SNAPSHOT.jar for read twitt stream data.
+
+# Issue Faced #
+twitter4j.TwitterStreamImpl: Receiving status stream. Exception in thread "Twitter4J Async Dispatcher[0]" 
+java.lang.NoSuchMethodError: twitter4j.json.JSONObjectType.determine(Ltwitter4j/internal/org/json/JSONObject;)
+Ltwitter4j/json/JSONObjectType; at twitter4j.AbstractStreamImplementation$1.run(AbstractStreamImplementation.java:100) 
+at twitter4j.internal.async.ExecuteThread.run(DispatcherImpl.java:116)
+
+# Solution #
+# I changed the .jar from twitter4j-core-2.2.6.jar to twitter4j-stream-3.0.0.jar it got resolved.
+# The main reason behind this issue was due to  FilterQuery fq = new FilterQuery(); was used in the code and FilterQuery class is present in 
+# twitter4j-core-2.2.6.jar but it has some problem and due to this the issue was coming. If we replace the twitter4j-core-2.2.6.jar with twitter4j-stream-3.0.0.jar 
+# then it also contains FilterQuery class and issue gets solved.
+-------------------------------------------------------------------------------------------------------------------------------
+
+Step 1: Create flume-conf.properties.template file
+
+cp /home/cloudera/flumepratice/twitter4j-core-2.2.6.jar /usr/lib/flume-ng/lib/
+
+flume-ng agent -c /etc/flume-ng/conf -f /home/cloudera/flumepratice/flume-conf.properties.template -n TwitterAgent -Dflume.root.logger=INFO,console
+
+Step 3: Create HIVE TABLE
+query editor > settings > File Resources > Type : Jar and Path : <%uploaded path%>
+
+CREATE EXTERNAL TABLE tweets (
+  id BIGINT,
+  created_at STRING,
+  source STRING,
+  favorited BOOLEAN,
+  retweeted_status STRUCT<
+    text:STRING,
+    user:STRUCT<screen_name:STRING,name:STRING>,
+    retweet_count:INT>,
+  entities STRUCT<
+    urls:ARRAY<STRUCT<expanded_url:STRING>>,
+    user_mentions:ARRAY<STRUCT<screen_name:STRING,name:STRING>>,
+    hashtags:ARRAY<STRUCT<text:STRING>>>,
+  text STRING,
+  user STRUCT<
+    screen_name:STRING,
+    name:STRING,
+    friends_count:INT,
+    followers_count:INT,
+    statuses_count:INT,
+    verified:BOOLEAN,
+    utc_offset:INT,
+    time_zone:STRING>,
+  in_reply_to_screen_name STRING
+) 
+ROW FORMAT SERDE 'com.cloudera.hive.serde.JSONSerDe'
+LOCATION '/user/cloudera/flumepratice/twitter'; // location where flume tweet data store. It is mentioned in cofiguration file.
+
+Step 4:
+select * from tweet;
